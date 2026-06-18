@@ -46,6 +46,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path package\Data\SKSE\Plugins | Out-Null
           Copy-Item build\vs2022\Release\SEDAS.dll package\Data\SKSE\Plugins\
           Copy-Item data\SKSE\Plugins\SEDAS.toml package\Data\SKSE\Plugins\
+          if (Test-Path build\vs2022\vcpkg_installed\x64-windows-static-md\bin) {
+            Copy-Item build\vs2022\vcpkg_installed\x64-windows-static-md\bin\*.dll package\Data\SKSE\Plugins\ -ErrorAction SilentlyContinue
+          }
           Compress-Archive -Path package\Data -DestinationPath SEDAS.zip -Force
 
       - name: Upload artifact
