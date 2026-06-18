@@ -1,0 +1,8 @@
+build/
+out/
+.vs/
+*.user
+*.suo
+*.log
+*.zip
+extern/SKSEMenuFramework/SKSEMenuFramework.h

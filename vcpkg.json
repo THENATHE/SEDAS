@@ -1,0 +1,9 @@
+{
+  "name": "sedas",
+  "version-string": "0.1.0",
+  "description": "SKSE plugin for survival saving, dragon soul economy, and death alternative recovery.",
+  "dependencies": [
+    "commonlibsse-ng-ae",
+    "tomlplusplus"
+  ]
+}

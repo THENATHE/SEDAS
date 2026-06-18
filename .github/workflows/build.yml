@@ -1,0 +1,55 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  windows:
+    name: Windows MSVC
+    runs-on: windows-2022
+
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg "$env:VCPKG_ROOT"
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat"
+
+      - name: Fetch SKSE Menu Framework header
+        shell: pwsh
+        run: .\scripts\fetch-skmf-header.ps1
+
+      - name: Configure
+        shell: pwsh
+        run: cmake --preset vs2022
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build --preset release
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package\Data\SKSE\Plugins | Out-Null
+          Copy-Item build\vs2022\Release\SEDAS.dll package\Data\SKSE\Plugins\
+          Copy-Item data\SKSE\Plugins\SEDAS.toml package\Data\SKSE\Plugins\
+          Compress-Archive -Path package\Data -DestinationPath SEDAS.zip -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SEDAS
+          path: SEDAS.zip

@@ -1,0 +1,46 @@
+[Saving]
+SaveOnlyAtBeds = true
+AllowExitSave = true
+BedSaveWindowSeconds = 20
+InstallSaveHook = false
+
+[DeathAlternative]
+Enabled = true
+ConsumeDragonSoulToRevive = true
+RecallToLastBedWhenNoSouls = true
+DownedDurationSeconds = 4
+DisableControlsWhileDowned = true
+
+[SoulEconomy]
+Enabled = true
+SoulCap = 20
+
+EnableCarryWeight = true
+CarryWeightPerSoul = 5
+
+EnableHealth = true
+HealthPerSoul = 5
+
+EnableStamina = true
+StaminaPerSoul = 5
+
+EnableMagicka = true
+MagickaPerSoul = 5
+
+EnableWeaponDamage = true
+WeaponDamagePercentPerSoul = 1
+
+EnableSpellCostReduction = true
+SpellCostReductionPercentPerSoul = 1
+
+[DragonAspect]
+Enabled = true
+UseVanillaDragonAspect = true
+Rank1SoulThreshold = 5
+Rank2SoulThreshold = 10
+Rank3SoulThreshold = 20
+
+# Optional overrides. Leave blank to let the DLL try vanilla Dragonborn editor IDs.
+Rank1SpellEditorID = ""
+Rank2SpellEditorID = ""
+Rank3SpellEditorID = ""
