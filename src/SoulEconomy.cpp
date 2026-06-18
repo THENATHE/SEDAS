@@ -18,7 +18,7 @@ namespace
 			return;
 		}
 
-		a_av->ModActorValue(kModifier, a_actorValue, a_delta);
+		a_av->RestoreActorValue(kModifier, a_actorValue, a_delta);
 	}
 
 	void ApplyDelta(const SEDAS::State::AppliedBonuses& a_old, const SEDAS::State::AppliedBonuses& a_new)
@@ -66,7 +66,7 @@ namespace SEDAS::SoulEconomy
 			return false;
 		}
 
-		av->ModActorValue(RE::ACTOR_VALUE_MODIFIERS::kPermanent, RE::ActorValue::kDragonSouls, -1.0F);
+		av->ModActorValue(RE::ActorValue::kDragonSouls, -1.0F);
 		Refresh();
 		return true;
 	}

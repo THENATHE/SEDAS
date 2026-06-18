@@ -30,3 +30,4 @@
 #include <vector>
 
 namespace logger = SKSE::log;
+using namespace std::literals;

@@ -44,6 +44,8 @@ target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
 target_precompile_headers(${PROJECT_NAME} PRIVATE include/SEDAS/PCH.h)
 target_include_directories(${PROJECT_NAME} PRIVATE include)
 target_compile_definitions(${PROJECT_NAME} PRIVATE
+  UNICODE
+  _UNICODE
   SEDAS_PLUGIN_NAME="SEDAS"
   SEDAS_PRETTY_NAME="Survival Saving, Soul Economy, and Death Alternative System"
 )

@@ -58,10 +58,13 @@ namespace
 			return;
 		}
 
-		const auto maxHealth = std::max(1.0F, a_player->GetActorValueMax(RE::ActorValue::kHealth));
-		const auto currentHealth = av->GetActorValue(RE::ActorValue::kHealth);
-		if (currentHealth < maxHealth) {
-			av->RestoreActorValue(RE::ActorValue::kHealth, maxHealth - currentHealth);
+		av->RestoreActorValue(RE::ACTOR_VALUE_MODIFIERS::kDamage, RE::ActorValue::kHealth, 1000000.0F);
+	}
+
+	void SetPlayerInputBlocked(bool a_blocked)
+	{
+		if (auto controls = RE::PlayerControls::GetSingleton()) {
+			controls->blockPlayerInput = a_blocked;
 		}
 	}
 
@@ -240,7 +243,7 @@ namespace SEDAS::DeathAlternative
 		g_soulsAtRecoveryStart.store(SoulEconomy::GetDragonSoulCount());
 
 		if (config.disableControlsWhileDowned) {
-			player->SetPlayerControls(false);
+			SetPlayerInputBlocked(true);
 		}
 
 		bool recallToBed = false;
@@ -282,7 +285,7 @@ namespace SEDAS::DeathAlternative
 		ApplyDragonAspectIfConfigured(player);
 
 		if (Settings::Get().death.disableControlsWhileDowned) {
-			player->SetPlayerControls(true);
+			SetPlayerInputBlocked(false);
 		}
 
 		State::Get().recoveringFromDowned = false;
