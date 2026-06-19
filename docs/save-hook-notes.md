@@ -6,8 +6,8 @@
 - if `SaveOnlyAtBeds` is true, allow saves during the post-sleep bed window
 - if `AllowExitSave` is true, allow exit saves while `SaveOnlyAtBeds` is true
 
-The remaining work is the actual save interception for the latest runtime.
+SEDAS now installs a trampoline on the CommonLibSSE-NG `BGSSaveLoadManager::Save` relocation when `InstallSaveHook` is true. The hook is policy-only: disabling `SaveOnlyAtBeds` allows saves through. If an older config has `SaveOnlyAtBeds = true` and `InstallSaveHook = false`, SEDAS enables the hook for that session so the saving policy still works.
 
-The safe target is the internal `BGSSaveLoadManager` save path, not menu text or input events. `BGSSaveLoadManager::Save()` is public in CommonLibSSE-NG, but the enforceable gate is lower than that and should be confirmed against the current Address Library IDs before a trampoline is installed.
+When `AutoSaveAtBedInsteadOfWindow` is true, SEDAS queues a post-sleep autosave on the next SKSE task instead of opening a timed manual-save window. That autosave is marked as an internal SEDAS save so the save hook allows it even when ordinary autosaves are blocked.
 
-Until this hook is confirmed, `InstallSaveHook = false` is the default.
+The hook is intentionally narrow. It blocks the actual save request instead of trying to hide menu entries or infer input events.

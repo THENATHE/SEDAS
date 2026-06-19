@@ -8,8 +8,9 @@ namespace SEDAS::Settings
 	{
 		bool saveOnlyAtBeds = true;
 		bool allowExitSave = true;
+		bool autoSaveAtBedInsteadOfWindow = false;
 		int bedSaveWindowSeconds = 20;
-		bool installSaveHook = false;
+		bool installSaveHook = true;
 	};
 
 	struct DeathAlternativeConfig
@@ -19,6 +20,10 @@ namespace SEDAS::Settings
 		bool recallToLastBedWhenNoSouls = true;
 		int downedDurationSeconds = 4;
 		bool disableControlsWhileDowned = true;
+		bool ragdollInsteadOfBleedout = false;
+		bool playDragonSoulAbsorbEffect = true;
+		std::string soulAbsorbEffectShaderEditorID;
+		std::string soulAbsorbArtObjectEditorID;
 	};
 
 	struct SoulEconomyConfig

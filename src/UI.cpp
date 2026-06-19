@@ -16,6 +16,7 @@ namespace
 	void SaveAndRefresh()
 	{
 		SEDAS::Settings::Save();
+		SEDAS::Saving::InstallHooks();
 		SEDAS::SoulEconomy::Refresh();
 		SEDAS::DeathAlternative::RefreshPlayerEssentialFlag();
 	}
@@ -37,14 +38,21 @@ namespace
 	{
 		auto& config = SEDAS::Settings::Get().saving;
 		ImGuiMCP::Checkbox("Save only at beds", &config.saveOnlyAtBeds);
-		if (!config.saveOnlyAtBeds) {
+		if (config.saveOnlyAtBeds) {
+			config.installSaveHook = true;
+		} else {
 			config.allowExitSave = false;
+			config.autoSaveAtBedInsteadOfWindow = false;
+			config.installSaveHook = false;
 		}
 
 		ImGuiMCP::BeginDisabled(!config.saveOnlyAtBeds);
 		ImGuiMCP::Checkbox("Allow exit save", &config.allowExitSave);
+		ImGuiMCP::Checkbox("Autosave after sleeping", &config.autoSaveAtBedInsteadOfWindow);
+		ImGuiMCP::EndDisabled();
+
+		ImGuiMCP::BeginDisabled(!config.saveOnlyAtBeds || config.autoSaveAtBedInsteadOfWindow);
 		ImGuiMCP::SliderInt("Bed save window seconds", &config.bedSaveWindowSeconds, 0, 120);
-		ImGuiMCP::Checkbox("Install experimental save hook", &config.installSaveHook);
 		ImGuiMCP::EndDisabled();
 
 		ImGuiMCP::Separator();
@@ -61,7 +69,21 @@ namespace
 		ImGuiMCP::Checkbox("Consume dragon soul to revive", &config.consumeDragonSoulToRevive);
 		ImGuiMCP::Checkbox("Recall to last bed with no souls", &config.recallToLastBedWhenNoSouls);
 		ImGuiMCP::Checkbox("Disable controls while downed", &config.disableControlsWhileDowned);
+		ImGuiMCP::Checkbox("Ragdoll instead of bleedout", &config.ragdollInsteadOfBleedout);
+		ImGuiMCP::Checkbox("Play dragon soul absorb effect on revive", &config.playDragonSoulAbsorbEffect);
 		ImGuiMCP::SliderInt("Downed duration seconds", &config.downedDurationSeconds, 0, 30);
+
+		char effectShader[256]{};
+		char artObject[256]{};
+		std::strncpy(effectShader, config.soulAbsorbEffectShaderEditorID.c_str(), sizeof(effectShader) - 1);
+		std::strncpy(artObject, config.soulAbsorbArtObjectEditorID.c_str(), sizeof(artObject) - 1);
+
+		if (ImGuiMCP::InputText("Soul absorb effect shader editor ID", effectShader, sizeof(effectShader))) {
+			config.soulAbsorbEffectShaderEditorID = effectShader;
+		}
+		if (ImGuiMCP::InputText("Soul absorb art object editor ID", artObject, sizeof(artObject))) {
+			config.soulAbsorbArtObjectEditorID = artObject;
+		}
 
 		ImGuiMCP::Separator();
 		ImGuiMCP::Text("Last bed: %08X", state.lastBedRefID);
@@ -75,6 +97,19 @@ namespace
 		ImGuiMCP::SameLine();
 		ImGuiMCP::SetNextItemWidth(120.0F);
 		ImGuiMCP::SliderFloat((std::string("##") + a_label).c_str(), a_value, a_min, a_max, "%.1f");
+	}
+
+	void RenderAppliedBonuses(const SEDAS::State::AppliedBonuses& a_applied)
+	{
+		ImGuiMCP::Text("Dragon souls: %d", SEDAS::SoulEconomy::GetDragonSoulCount());
+		ImGuiMCP::Text("Effective iterations: %d", a_applied.iterations);
+		ImGuiMCP::Separator();
+		ImGuiMCP::Text("Soul Attunement - Carry Weight: +%.1f", a_applied.carryWeight);
+		ImGuiMCP::Text("Soul Attunement - Health: +%.1f", a_applied.health);
+		ImGuiMCP::Text("Soul Attunement - Stamina: +%.1f", a_applied.stamina);
+		ImGuiMCP::Text("Soul Attunement - Magicka: +%.1f", a_applied.magicka);
+		ImGuiMCP::Text("Soul Attunement - Weapon Damage: +%.1f%%", a_applied.weaponDamage);
+		ImGuiMCP::Text("Soul Attunement - Spell Cost Reduction: +%.1f%%", a_applied.spellCostReduction);
 	}
 
 	void __stdcall RenderSoulEconomy()
@@ -94,9 +129,32 @@ namespace
 		RenderBonusFloat("Spell cost reduction percent per soul", &config.enableSpellCostReduction, &config.spellCostReductionPercentPerSoul, 0.0F, 25.0F);
 
 		ImGuiMCP::Separator();
-		ImGuiMCP::Text("Dragon souls: %d", SEDAS::SoulEconomy::GetDragonSoulCount());
-		ImGuiMCP::Text("Effective iterations: %d", applied.iterations);
+		RenderAppliedBonuses(applied);
 		RenderSaveButton();
+	}
+
+	void __stdcall RenderDebugging()
+	{
+		if (ImGuiMCP::Button("Force fix death state")) {
+			SEDAS::DeathAlternative::ForceFixPlayerState();
+		}
+		ImGuiMCP::SameLine();
+		if (ImGuiMCP::Button("Force bed save window")) {
+			SEDAS::Saving::OpenBedSaveWindow();
+		}
+
+		ImGuiMCP::Separator();
+		if (ImGuiMCP::Button("Remove all Soul Attunement buffs")) {
+			SEDAS::SoulEconomy::RemoveAppliedBonuses();
+		}
+		ImGuiMCP::SameLine();
+		if (ImGuiMCP::Button("Reapply Soul Attunement buffs")) {
+			SEDAS::SoulEconomy::Refresh();
+		}
+
+		ImGuiMCP::Separator();
+		ImGuiMCP::Text("Bed save window: %s", SEDAS::Saving::IsInBedSaveWindow() ? "open" : "closed");
+		RenderAppliedBonuses(SEDAS::State::Get().appliedBonuses);
 	}
 
 	void __stdcall RenderDragonAspect()
@@ -146,6 +204,7 @@ namespace SEDAS::UI
 		SKSEMenuFramework::AddSectionItem("Death Alternative", RenderDeath);
 		SKSEMenuFramework::AddSectionItem("Soul Economy", RenderSoulEconomy);
 		SKSEMenuFramework::AddSectionItem("Dragon Aspect", RenderDragonAspect);
+		SKSEMenuFramework::AddSectionItem("Debugging", RenderDebugging);
 		logger::info("Registered SKSE Menu Framework pages");
 #else
 		logger::info("SKSE Menu Framework header absent at build time; menu pages disabled");

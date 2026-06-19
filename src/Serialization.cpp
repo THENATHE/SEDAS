@@ -57,6 +57,13 @@ namespace
 		state.originalPlayerEssential = a_blob.originalPlayerEssential;
 		state.candidateBedRefID = 0;
 		state.recoveringFromDowned = false;
+		state.haveOriginalDownedFlags = false;
+		state.originalMovementBlocked = false;
+		state.originalInBleedoutAnimation = false;
+		state.originalBlockPlayerInput = false;
+		state.haveOriginalPlayerRuntimeFlags = false;
+		state.originalPlayerRuntimeEssential = false;
+		state.originalPlayerRuntimeProtected = false;
 	}
 
 	void SaveCallback(SKSE::SerializationInterface* a_intfc)
@@ -121,4 +128,3 @@ namespace SEDAS::Serialization
 		serialization->SetRevertCallback(RevertCallback);
 	}
 }
-

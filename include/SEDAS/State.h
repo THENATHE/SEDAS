@@ -26,6 +26,13 @@ namespace SEDAS::State
 
 		bool haveOriginalPlayerEssential = false;
 		bool originalPlayerEssential = false;
+		bool haveOriginalPlayerRuntimeFlags = false;
+		bool originalPlayerRuntimeEssential = false;
+		bool originalPlayerRuntimeProtected = false;
+		bool haveOriginalDownedFlags = false;
+		bool originalMovementBlocked = false;
+		bool originalInBleedoutAnimation = false;
+		bool originalBlockPlayerInput = false;
 		bool recoveringFromDowned = false;
 	};
 
@@ -39,4 +46,3 @@ namespace SEDAS::State
 
 	void SetAppliedBonuses(const AppliedBonuses& a_bonuses);
 }
-

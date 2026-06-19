@@ -22,3 +22,17 @@ Then launch through SKSE again and check:
 Documents/My Games/Skyrim Special Edition/SKSE/skse64.log
 Documents/My Games/Skyrim Special Edition/SKSE/SEDAS.log
 ```
+
+## SEDAS loaded, but no SEDAS.log exists
+
+SEDAS tries the normal SKSE log directory first:
+
+```text
+Documents/My Games/Skyrim Special Edition/SKSE/SEDAS.log
+```
+
+If that path is not available, current builds fall back to writing beside the plugin:
+
+```text
+Data/SKSE/Plugins/SEDAS.log
+```

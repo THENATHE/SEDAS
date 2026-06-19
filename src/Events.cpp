@@ -59,7 +59,7 @@ namespace
 			}
 
 			if (SEDAS::State::CommitCandidateBed()) {
-				SEDAS::Saving::OpenBedSaveWindow();
+				SEDAS::Saving::HandleBedSaveOpportunity();
 			}
 
 			return RE::BSEventNotifyControl::kContinue;
@@ -77,10 +77,6 @@ namespace
 		RE::BSEventNotifyControl ProcessEvent(const RE::TESDeathEvent* a_event, RE::BSTEventSource<RE::TESDeathEvent>*) override
 		{
 			if (a_event && a_event->dead && IsPlayer(a_event->actorDying.get())) {
-				auto player = RE::PlayerCharacter::GetSingleton();
-				if (player) {
-					player->Resurrect(false, true);
-				}
 				SEDAS::DeathAlternative::TryStartRecovery("death");
 			}
 

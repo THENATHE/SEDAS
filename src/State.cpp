@@ -24,6 +24,10 @@ namespace SEDAS::State
 		std::scoped_lock lock(g_stateLock);
 		g_state.candidateBedRefID = 0;
 		g_state.recoveringFromDowned = false;
+		g_state.haveOriginalDownedFlags = false;
+		g_state.originalMovementBlocked = false;
+		g_state.originalInBleedoutAnimation = false;
+		g_state.originalBlockPlayerInput = false;
 	}
 
 	void RecordCandidateBed(RE::TESObjectREFR* a_bed)
@@ -73,4 +77,3 @@ namespace SEDAS::State
 		g_state.appliedBonuses = a_bonuses;
 	}
 }
-

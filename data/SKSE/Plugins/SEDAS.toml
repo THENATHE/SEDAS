@@ -1,8 +1,9 @@
 [Saving]
 SaveOnlyAtBeds = true
 AllowExitSave = true
+AutoSaveAtBedInsteadOfWindow = false
 BedSaveWindowSeconds = 20
-InstallSaveHook = false
+InstallSaveHook = true
 
 [DeathAlternative]
 Enabled = true
@@ -10,6 +11,12 @@ ConsumeDragonSoulToRevive = true
 RecallToLastBedWhenNoSouls = true
 DownedDurationSeconds = 4
 DisableControlsWhileDowned = true
+RagdollInsteadOfBleedout = false
+PlayDragonSoulAbsorbEffect = true
+
+# Optional visual overrides. Leave blank to let the DLL try vanilla editor IDs.
+SoulAbsorbEffectShaderEditorID = ""
+SoulAbsorbArtObjectEditorID = ""
 
 [SoulEconomy]
 Enabled = true
