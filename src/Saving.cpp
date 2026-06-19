@@ -154,14 +154,17 @@ namespace
 		}
 
 		auto& flags = player->GetGameStatsData().byCharGenFlag;
+		using ByCharGenFlag = RE::PlayerCharacter::ByCharGenFlag;
+		// Older CommonLibSSE ports do not name this bit; newer headers call bit 0 kDisableSaving.
+		constexpr auto kDisableSaving = static_cast<ByCharGenFlag>(1U << 0);
 		if (!g_haveOriginalSavingDisabled.exchange(true)) {
-			g_originalSavingDisabled.store(flags.all(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving));
+			g_originalSavingDisabled.store(flags.all(kDisableSaving));
 		}
 
 		if (a_disabled) {
-			flags.set(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving);
+			flags.set(kDisableSaving);
 		} else if (!g_originalSavingDisabled.load()) {
-			flags.reset(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving);
+			flags.reset(kDisableSaving);
 		}
 	}
 
