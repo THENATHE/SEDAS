@@ -386,7 +386,6 @@ namespace
 			a_player->SetLifeState(RE::ACTOR_LIFE_STATE::kEssentialDown);
 		}
 
-		a_player->InitiateDoNothingPackage();
 		ExitBleedoutCamera(a_player);
 	}
 

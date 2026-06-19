@@ -8,25 +8,24 @@
 #include "SEDAS/SoulEconomy.h"
 #include "SEDAS/UI.h"
 
-#include <REX/W32/KERNEL32.h>
+#include <Windows.h>
+
+extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 namespace
 {
 	std::optional<std::filesystem::path> CurrentModuleDirectory()
 	{
-		auto module = REX::W32::GetCurrentModule();
-		if (!module) {
-			return std::nullopt;
-		}
+		const auto module = reinterpret_cast<HMODULE>(&__ImageBase);
 
-		std::wstring buffer(REX::W32::MAX_PATH, L'\0');
+		std::wstring buffer(MAX_PATH, L'\0');
 		for (;;) {
-			const auto copied = REX::W32::GetModuleFileNameW(module, buffer.data(), static_cast<std::uint32_t>(buffer.size()));
+			const auto copied = ::GetModuleFileNameW(module, buffer.data(), static_cast<DWORD>(buffer.size()));
 			if (copied == 0) {
 				return std::nullopt;
 			}
 
-			if (copied < buffer.size() - 1) {
+			if (copied < buffer.size()) {
 				buffer.resize(copied);
 				return std::filesystem::path(buffer).parent_path();
 			}
