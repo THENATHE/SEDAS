@@ -4,12 +4,20 @@
 #include "SEDAS/SoulEconomy.h"
 #include "SEDAS/State.h"
 
+#include "RE/Offsets_VTABLE.h"
+
 namespace
 {
+	using HandleHealthDamage_t = void (*)(RE::Actor*, RE::Actor*, float);
+	using KillImpl_t = void (*)(RE::Actor*, RE::Actor*, float, bool, bool);
+
 	std::atomic_bool g_recoveryScheduled{ false };
+	std::atomic_bool g_deathHooksInstalled{ false };
 	std::atomic_bool g_consumedSoulForRecovery{ false };
 	std::atomic_int g_soulsAtRecoveryStart{ 0 };
 	std::atomic<std::uint64_t> g_recoveryGeneration{ 0 };
+	HandleHealthDamage_t g_originalHandleHealthDamage = nullptr;
+	KillImpl_t g_originalKillImpl = nullptr;
 
 	constexpr std::array<std::string_view, 8> kRank1DragonAspectSpellEditorIDs{
 		"DLC2DragonAspectPower01",
@@ -69,6 +77,18 @@ namespace
 	RE::PlayerCharacter* Player()
 	{
 		return RE::PlayerCharacter::GetSingleton();
+	}
+
+	bool IsPlayerActor(RE::Actor* a_actor)
+	{
+		const auto player = Player();
+		return player && a_actor == player;
+	}
+
+	float GetHealth(RE::Actor* a_actor)
+	{
+		auto av = a_actor ? a_actor->AsActorValueOwner() : nullptr;
+		return av ? av->GetActorValue(RE::ActorValue::kHealth) : 0.0F;
 	}
 
 	void RestoreHealthToFull(RE::PlayerCharacter* a_player)
@@ -333,9 +353,8 @@ namespace
 			return;
 		}
 
-		const auto& flags = a_player->GetActorRuntimeData().boolFlags;
-		state.originalMovementBlocked = flags.all(RE::Actor::BOOL_FLAGS::kMovementBlocked);
-		state.originalInBleedoutAnimation = flags.all(RE::Actor::BOOL_FLAGS::kInBleedoutAnimation);
+		state.originalMovementBlocked = false;
+		state.originalInBleedoutAnimation = false;
 		if (auto controls = RE::PlayerControls::GetSingleton()) {
 			state.originalBlockPlayerInput = controls->blockPlayerInput;
 		} else {
@@ -403,13 +422,8 @@ namespace
 			a_player->PotentiallyFixRagdollState();
 		}
 
-		if (state.haveOriginalDownedFlags) {
-			RestoreActorFlag(a_player, RE::Actor::BOOL_FLAGS::kMovementBlocked, state.originalMovementBlocked);
-			RestoreActorFlag(a_player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, state.originalInBleedoutAnimation);
-		} else {
-			RestoreActorFlag(a_player, RE::Actor::BOOL_FLAGS::kMovementBlocked, false);
-			RestoreActorFlag(a_player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, false);
-		}
+		RestoreActorFlag(a_player, RE::Actor::BOOL_FLAGS::kMovementBlocked, false);
+		RestoreActorFlag(a_player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, false);
 
 		RestorePlayerInputBlocked();
 		a_player->StopMoving(0.0F);
@@ -428,13 +442,8 @@ namespace
 
 		StabilizeAliveState(player);
 		auto& state = SEDAS::State::Get();
-		if (state.haveOriginalDownedFlags) {
-			RestoreActorFlag(player, RE::Actor::BOOL_FLAGS::kMovementBlocked, state.originalMovementBlocked);
-			RestoreActorFlag(player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, state.originalInBleedoutAnimation);
-		} else {
-			SetActorFlag(player, RE::Actor::BOOL_FLAGS::kMovementBlocked, false);
-			SetActorFlag(player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, false);
-		}
+		SetActorFlag(player, RE::Actor::BOOL_FLAGS::kMovementBlocked, false);
+		SetActorFlag(player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, false);
 		RestorePlayerInputBlocked();
 
 		if (player->IsInRagdollState()) {
@@ -501,12 +510,69 @@ namespace
 			}
 		}).detach();
 	}
+
+	void HookedHandleHealthDamage(RE::Actor* a_actor, RE::Actor* a_attacker, float a_damage)
+	{
+		if (IsPlayerActor(a_actor) && SEDAS::Settings::Get().death.enabled) {
+			const auto health = GetHealth(a_actor);
+			if (a_damage > 0.0F && health <= std::max(1.0F, a_damage + 1.0F)) {
+				logger::info("Intercepted lethal player health damage: health={}, damage={}", health, a_damage);
+				SEDAS::DeathAlternative::TryStartRecovery("lethal damage hook");
+				return;
+			}
+		}
+
+		if (g_originalHandleHealthDamage) {
+			g_originalHandleHealthDamage(a_actor, a_attacker, a_damage);
+		}
+	}
+
+	void HookedKillImpl(RE::Actor* a_actor, RE::Actor* a_attacker, float a_damage, bool a_sendEvent, bool a_ragdollInstant)
+	{
+		if (IsPlayerActor(a_actor) && SEDAS::Settings::Get().death.enabled) {
+			logger::info("Intercepted player KillImpl: damage={}, sendEvent={}, ragdollInstant={}", a_damage, a_sendEvent, a_ragdollInstant);
+			SEDAS::DeathAlternative::TryStartRecovery("kill hook");
+			return;
+		}
+
+		if (g_originalKillImpl) {
+			g_originalKillImpl(a_actor, a_attacker, a_damage, a_sendEvent, a_ragdollInstant);
+		}
+	}
+
+	void HookDeathVTable(const REL::VariantID& a_vtableID, std::string_view a_name)
+	{
+		REL::Relocation<std::uintptr_t> vtable{ a_vtableID };
+		auto originalDamage = reinterpret_cast<HandleHealthDamage_t>(vtable.write_vfunc(0x104, HookedHandleHealthDamage));
+		auto originalKill = reinterpret_cast<KillImpl_t>(vtable.write_vfunc(0x10E, HookedKillImpl));
+
+		if (!g_originalHandleHealthDamage) {
+			g_originalHandleHealthDamage = originalDamage;
+		}
+		if (!g_originalKillImpl) {
+			g_originalKillImpl = originalKill;
+		}
+
+		logger::info("Installed {} death prevention vtable hooks", a_name);
+	}
+
+	void InstallDeathHooks()
+	{
+		if (g_deathHooksInstalled.exchange(true)) {
+			return;
+		}
+
+		HookDeathVTable(RE::VTABLE_Actor[0], "Actor");
+		HookDeathVTable(RE::VTABLE_Character[0], "Character");
+		HookDeathVTable(RE::VTABLE_PlayerCharacter[0], "PlayerCharacter");
+	}
 }
 
 namespace SEDAS::DeathAlternative
 {
 	void Install()
 	{
+		InstallDeathHooks();
 		RefreshPlayerEssentialFlag();
 	}
 

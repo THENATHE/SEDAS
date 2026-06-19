@@ -77,6 +77,7 @@ namespace SEDAS::Plugin
 		Events::Install();
 		DeathAlternative::Install();
 		Saving::InstallHooks();
+		Saving::RefreshSaveDisabledFlag();
 		UI::Register();
 		SoulEconomy::Refresh();
 		DeathAlternative::RefreshPlayerEssentialFlag();
@@ -87,6 +88,7 @@ namespace SEDAS::Plugin
 	{
 		DeathAlternative::ClearRecoveryState();
 		Settings::Load();
+		Saving::RefreshSaveDisabledFlag();
 		SoulEconomy::Refresh();
 		DeathAlternative::RefreshPlayerEssentialFlag();
 	}

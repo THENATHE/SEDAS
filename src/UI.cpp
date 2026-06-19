@@ -17,6 +17,7 @@ namespace
 	{
 		SEDAS::Settings::Save();
 		SEDAS::Saving::InstallHooks();
+		SEDAS::Saving::RefreshSaveDisabledFlag();
 		SEDAS::SoulEconomy::Refresh();
 		SEDAS::DeathAlternative::RefreshPlayerEssentialFlag();
 	}
@@ -29,6 +30,7 @@ namespace
 		ImGuiMCP::SameLine();
 		if (ImGuiMCP::Button("Reload")) {
 			SEDAS::Settings::Load();
+			SEDAS::Saving::RefreshSaveDisabledFlag();
 			SEDAS::SoulEconomy::Refresh();
 			SEDAS::DeathAlternative::RefreshPlayerEssentialFlag();
 		}

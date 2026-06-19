@@ -9,7 +9,9 @@ namespace
 	std::atomic<std::int64_t> g_bedSaveWindowEndMs{ 0 };
 	std::atomic_bool g_bedAutoSaveQueued{ false };
 	std::atomic_bool g_hookInstalled{ false };
+	std::atomic_bool g_haveOriginalSavingDisabled{ false };
 	std::atomic_bool g_internalSaveAllowed{ false };
+	std::atomic_bool g_originalSavingDisabled{ false };
 	std::mutex g_saveHookLock;
 
 	using SaveImpl_t = bool (*)(RE::BGSSaveLoadManager*, std::int32_t, std::uint32_t, const char*);
@@ -105,6 +107,7 @@ namespace
 		~InternalSaveGuard()
 		{
 			g_internalSaveAllowed.store(_wasAllowed);
+			SEDAS::Saving::RefreshSaveDisabledFlag();
 		}
 
 		InternalSaveGuard(const InternalSaveGuard&) = delete;
@@ -137,6 +140,43 @@ namespace
 		return reinterpret_cast<SaveImpl_t>(g_saveTarget)(a_manager, a_deviceID, a_outputStats, a_fileName);
 	}
 
+	bool ShouldDisableSavingNow()
+	{
+		const auto& config = SEDAS::Settings::Get().saving;
+		return config.saveOnlyAtBeds && !g_internalSaveAllowed.load() && !SEDAS::Saving::IsInBedSaveWindow();
+	}
+
+	void SetPlayerSavingDisabled(bool a_disabled)
+	{
+		auto player = RE::PlayerCharacter::GetSingleton();
+		if (!player) {
+			return;
+		}
+
+		auto& flags = player->GetGameStatsData().byCharGenFlag;
+		if (!g_haveOriginalSavingDisabled.exchange(true)) {
+			g_originalSavingDisabled.store(flags.all(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving));
+		}
+
+		if (a_disabled) {
+			flags.set(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving);
+		} else if (!g_originalSavingDisabled.load()) {
+			flags.reset(RE::PlayerCharacter::ByCharGenFlag::kDisableSaving);
+		}
+	}
+
+	void ScheduleSaveFlagRefresh(std::chrono::milliseconds a_delay)
+	{
+		std::thread([a_delay]() {
+			std::this_thread::sleep_for(a_delay);
+			if (auto task = SKSE::GetTaskInterface()) {
+				task->AddTask([]() {
+					SEDAS::Saving::RefreshSaveDisabledFlag();
+				});
+			}
+		}).detach();
+	}
+
 	void PerformBedAutoSave()
 	{
 		auto manager = RE::BGSSaveLoadManager::GetSingleton();
@@ -146,7 +186,9 @@ namespace
 		}
 
 		InternalSaveGuard internalSave;
+		SetPlayerSavingDisabled(false);
 		manager->Save(kBedAutoSaveName);
+		SEDAS::Saving::RefreshSaveDisabledFlag();
 		logger::info("Requested SEDAS bed autosave");
 	}
 }
@@ -172,6 +214,7 @@ namespace SEDAS::Saving
 		SKSE::AllocTrampoline(1 << 6);
 		PatchSaveHook();
 		logger::info("Installed BGSSaveLoadManager save hook at {:X}", g_saveTarget);
+		RefreshSaveDisabledFlag();
 	}
 
 	void HandleBedSaveOpportunity()
@@ -187,6 +230,8 @@ namespace SEDAS::Saving
 	{
 		const auto seconds = std::max(0, Settings::Get().saving.bedSaveWindowSeconds);
 		g_bedSaveWindowEndMs.store(NowMs() + static_cast<std::int64_t>(seconds) * 1000);
+		RefreshSaveDisabledFlag();
+		ScheduleSaveFlagRefresh(std::chrono::milliseconds(static_cast<std::int64_t>(seconds) * 1000 + 250));
 		logger::info("Opened bed save window for {} seconds", seconds);
 	}
 
@@ -212,6 +257,11 @@ namespace SEDAS::Saving
 	bool IsInBedSaveWindow()
 	{
 		return NowMs() <= g_bedSaveWindowEndMs.load();
+	}
+
+	void RefreshSaveDisabledFlag()
+	{
+		SetPlayerSavingDisabled(ShouldDisableSavingNow());
 	}
 
 	bool ShouldAllowSave(SaveKind a_kind)

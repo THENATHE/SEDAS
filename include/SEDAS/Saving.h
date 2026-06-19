@@ -17,6 +17,7 @@ namespace SEDAS::Saving
 	void HandleBedSaveOpportunity();
 	void OpenBedSaveWindow();
 	void QueueBedAutoSave();
+	void RefreshSaveDisabledFlag();
 	bool IsInBedSaveWindow();
 	bool ShouldAllowSave(SaveKind a_kind);
 	std::string_view SaveKindName(SaveKind a_kind);
