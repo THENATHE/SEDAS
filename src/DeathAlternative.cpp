@@ -604,7 +604,7 @@ namespace
 			if (currentCellID == state.lastBedCellID) {
 				auto position = state.lastBedPosition;
 				position.z += 50.0F;
-				a_player->SetPosition(position);
+				a_player->SetPosition(position.x, position.y, position.z);
 				a_player->SetRotationZ(state.lastBedAngle.z);
 				logger::info("Recalled player to stored last bed position {:08X} in current cell", state.lastBedRefID);
 				return true;
