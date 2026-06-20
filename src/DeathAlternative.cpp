@@ -74,6 +74,53 @@ namespace
 		"MQKillDragonArt"
 	};
 
+	constexpr std::array<std::string_view, 7> kDownedBleedoutStartEvents{
+		"BleedoutStart",
+		"bleedOutStart",
+		"IdleBleedoutStart",
+		"IdleDown",
+		"DeathStart",
+		"deathStart",
+		"IdleForceDefaultState"
+	};
+
+	constexpr std::array<std::string_view, 6> kDownedRagdollStartEvents{
+		"RagdollStart",
+		"ragdollStart",
+		"Ragdoll",
+		"ragdoll",
+		"StartRagdoll",
+		"IdleForceDefaultState"
+	};
+
+	constexpr std::array<std::string_view, 12> kRecoveryAnimationEvents{
+		"BleedoutStop",
+		"bleedOutStop",
+		"IdleBleedoutStop",
+		"RagdollEnd",
+		"ragdollEnd",
+		"GetUpBegin",
+		"getUpBegin",
+		"GetUpEnd",
+		"getUpEnd",
+		"IdleGetUp",
+		"IdleStop",
+		"IdleForceDefaultState"
+	};
+
+	constexpr std::array<std::string_view, 10> kRecoveryBoolGraphVariables{
+		"bAnimationDriven",
+		"bIsSynced",
+		"bInBleedout",
+		"bBleedout",
+		"bIsBleedingOut",
+		"bInRagdoll",
+		"bRagdoll",
+		"bDead",
+		"bDeath",
+		"bStaggered"
+	};
+
 	RE::PlayerCharacter* Player()
 	{
 		return RE::PlayerCharacter::GetSingleton();
@@ -146,6 +193,54 @@ namespace
 		} else {
 			flags.reset(a_flag);
 		}
+	}
+
+	void NotifyAnimationEvents(RE::PlayerCharacter* a_player, std::span<const std::string_view> a_events)
+	{
+		if (!a_player) {
+			return;
+		}
+
+		for (const auto eventName : a_events) {
+			if (eventName.empty()) {
+				continue;
+			}
+			a_player->NotifyAnimationGraph(RE::BSFixedString(eventName.data()));
+		}
+	}
+
+	void ResetActorStateBits(RE::PlayerCharacter* a_player)
+	{
+		if (!a_player) {
+			return;
+		}
+
+		if (auto actorState = a_player->AsActorState()) {
+			actorState->actorState1.movingBack = false;
+			actorState->actorState1.movingForward = false;
+			actorState->actorState1.movingRight = false;
+			actorState->actorState1.movingLeft = false;
+			actorState->actorState1.sprinting = false;
+			actorState->actorState1.sitSleepState = RE::SIT_SLEEP_STATE::kNormal;
+			actorState->actorState1.lifeState = RE::ACTOR_LIFE_STATE::kAlive;
+			actorState->actorState1.knockState = RE::KNOCK_STATE_ENUM::kNormal;
+			actorState->actorState2.staggered = false;
+		}
+	}
+
+	void ResetDeathAnimationGraph(RE::PlayerCharacter* a_player)
+	{
+		if (!a_player) {
+			return;
+		}
+
+		for (const auto variableName : kRecoveryBoolGraphVariables) {
+			a_player->SetGraphVariableBool(RE::BSFixedString(variableName.data()), false);
+		}
+
+		a_player->SetGraphVariableFloat(RE::BSFixedString("Speed"), 0.0F);
+		a_player->SetGraphVariableFloat(RE::BSFixedString("Direction"), 0.0F);
+		NotifyAnimationEvents(a_player, kRecoveryAnimationEvents);
 	}
 
 	void RestoreActorFlag(RE::PlayerCharacter* a_player, RE::Actor::BOOL_FLAGS a_flag, bool a_enabled)
@@ -375,6 +470,7 @@ namespace
 
 		ClearDeathBits(a_player);
 		a_player->SetLifeState(RE::ACTOR_LIFE_STATE::kAlive);
+		ResetActorStateBits(a_player);
 		RestoreHealthToFull(a_player);
 	}
 
@@ -399,10 +495,12 @@ namespace
 		if (config.ragdollInsteadOfBleedout) {
 			SetActorFlag(a_player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, false);
 			a_player->SetLifeState(RE::ACTOR_LIFE_STATE::kUnconcious);
+			NotifyAnimationEvents(a_player, kDownedRagdollStartEvents);
 			a_player->SetMotionType(RE::TESObjectREFR::MotionType::kDynamic, true);
 		} else {
 			SetActorFlag(a_player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, true);
 			a_player->SetLifeState(RE::ACTOR_LIFE_STATE::kEssentialDown);
+			NotifyAnimationEvents(a_player, kDownedBleedoutStartEvents);
 		}
 
 		ExitBleedoutCamera(a_player);
@@ -414,7 +512,6 @@ namespace
 			return;
 		}
 
-		auto& state = SEDAS::State::Get();
 		StabilizeAliveState(a_player);
 
 		if (a_player->IsInRagdollState()) {
@@ -428,6 +525,8 @@ namespace
 		RestorePlayerInputBlocked();
 		a_player->StopMoving(0.0F);
 		a_player->StopInteractingQuick(true);
+		ResetActorStateBits(a_player);
+		ResetDeathAnimationGraph(a_player);
 		ExitBleedoutCamera(a_player);
 		a_player->InitiateGetUpPackage();
 		a_player->EvaluatePackage(true, true);
@@ -445,6 +544,8 @@ namespace
 		SetActorFlag(player, RE::Actor::BOOL_FLAGS::kMovementBlocked, false);
 		SetActorFlag(player, RE::Actor::BOOL_FLAGS::kInBleedoutAnimation, false);
 		RestorePlayerInputBlocked();
+		ResetActorStateBits(player);
+		ResetDeathAnimationGraph(player);
 
 		if (player->IsInRagdollState()) {
 			player->SetMotionType(RE::TESObjectREFR::MotionType::kCharacter, true);
@@ -459,20 +560,28 @@ namespace
 
 	void SchedulePostRecoveryCleanup(std::uint64_t a_generation)
 	{
-		std::thread([a_generation]() {
-			std::this_thread::sleep_for(std::chrono::milliseconds(250));
-			if (g_recoveryGeneration.load() != a_generation) {
-				return;
-			}
+		constexpr std::array<std::chrono::milliseconds, 3> delays{
+			std::chrono::milliseconds(250),
+			std::chrono::milliseconds(1000),
+			std::chrono::milliseconds(2500)
+		};
 
-			if (auto task = SKSE::GetTaskInterface()) {
-				task->AddTask([a_generation]() {
-					if (g_recoveryGeneration.load() == a_generation) {
-						PostRecoveryCleanup();
-					}
-				});
-			}
-		}).detach();
+		for (const auto delay : delays) {
+			std::thread([a_generation, delay]() {
+				std::this_thread::sleep_for(delay);
+				if (g_recoveryGeneration.load() != a_generation) {
+					return;
+				}
+
+				if (auto task = SKSE::GetTaskInterface()) {
+					task->AddTask([a_generation]() {
+						if (g_recoveryGeneration.load() == a_generation) {
+							PostRecoveryCleanup();
+						}
+					});
+				}
+			}).detach();
+		}
 	}
 
 	bool RecallPlayerToLastBed(RE::PlayerCharacter* a_player)
@@ -483,8 +592,23 @@ namespace
 
 		if (auto bed = SEDAS::State::ResolveLastBed()) {
 			a_player->MoveTo(bed);
+			a_player->SetRotationZ(bed->GetAngleZ());
 			logger::info("Recalled player to last slept bed {:08X}", bed->GetFormID());
 			return true;
+		}
+
+		auto& state = SEDAS::State::Get();
+		if (state.lastBedRefID && state.lastBedCellID) {
+			auto currentCell = a_player->GetParentCell();
+			const auto currentCellID = currentCell ? currentCell->GetFormID() : 0;
+			if (currentCellID == state.lastBedCellID) {
+				auto position = state.lastBedPosition;
+				position.z += 50.0F;
+				a_player->SetPosition(position);
+				a_player->SetRotationZ(state.lastBedAngle.z);
+				logger::info("Recalled player to stored last bed position {:08X} in current cell", state.lastBedRefID);
+				return true;
+			}
 		}
 
 		logger::warn("Recall requested, but last slept bed could not be resolved; reviving in place");

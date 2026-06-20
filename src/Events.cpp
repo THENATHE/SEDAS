@@ -24,6 +24,26 @@ namespace
 		return furniture && furniture->furnFlags.all(RE::TESFurniture::ActiveMarker::kCanSleep);
 	}
 
+	RE::NiPointer<RE::TESObjectREFR> GetOccupiedFurniture(RE::Actor* a_actor)
+	{
+		if (!a_actor) {
+			return nullptr;
+		}
+
+		return a_actor->GetOccupiedFurniture().get();
+	}
+
+	RE::TESObjectREFR* FindPlayerSleepFurniture()
+	{
+		auto player = RE::PlayerCharacter::GetSingleton();
+		auto occupied = GetOccupiedFurniture(player);
+		if (IsSleepFurniture(occupied.get())) {
+			return occupied.get();
+		}
+
+		return nullptr;
+	}
+
 	class EventSink :
 		public RE::BSTEventSink<RE::TESFurnitureEvent>,
 		public RE::BSTEventSink<RE::TESSleepStopEvent>,
@@ -45,8 +65,15 @@ namespace
 				return RE::BSEventNotifyControl::kContinue;
 			}
 
-			if (a_event->type.all(RE::TESFurnitureEvent::FurnitureEventType::kEnter) && IsSleepFurniture(a_event->targetFurniture.get())) {
-				SEDAS::State::RecordCandidateBed(a_event->targetFurniture.get());
+			if (a_event->type.all(RE::TESFurnitureEvent::FurnitureEventType::kEnter)) {
+				auto target = a_event->targetFurniture.get();
+				if (IsSleepFurniture(target)) {
+					SEDAS::State::RecordCandidateBed(target);
+				} else if (auto occupied = FindPlayerSleepFurniture()) {
+					SEDAS::State::RecordCandidateBed(occupied);
+				} else {
+					logger::debug("Player entered non-sleep furniture or unresolved furniture");
+				}
 			}
 
 			return RE::BSEventNotifyControl::kContinue;
@@ -54,12 +81,25 @@ namespace
 
 		RE::BSEventNotifyControl ProcessEvent(const RE::TESSleepStopEvent* a_event, RE::BSTEventSource<RE::TESSleepStopEvent>*) override
 		{
-			if (!a_event || a_event->interrupted) {
+			if (!a_event) {
 				return RE::BSEventNotifyControl::kContinue;
 			}
 
-			if (SEDAS::State::CommitCandidateBed()) {
+			logger::info("Sleep stop event received; interrupted={}", a_event->interrupted);
+
+			bool committedBed = false;
+			if (auto occupied = FindPlayerSleepFurniture()) {
+				committedBed = SEDAS::State::CommitBed(occupied);
+			}
+
+			if (!committedBed) {
+				committedBed = SEDAS::State::CommitCandidateBed();
+			}
+
+			if (committedBed) {
 				SEDAS::Saving::HandleBedSaveOpportunity();
+			} else {
+				logger::warn("Sleep stop event did not have a recorded or occupied bed");
 			}
 
 			return RE::BSEventNotifyControl::kContinue;

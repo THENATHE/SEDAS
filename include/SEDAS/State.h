@@ -19,6 +19,7 @@ namespace SEDAS::State
 	{
 		RE::FormID candidateBedRefID = 0;
 		RE::FormID lastBedRefID = 0;
+		RE::FormID lastBedCellID = 0;
 		RE::NiPoint3 lastBedPosition{ 0.0F, 0.0F, 0.0F };
 		RE::NiPoint3 lastBedAngle{ 0.0F, 0.0F, 0.0F };
 
@@ -40,8 +41,10 @@ namespace SEDAS::State
 	void ResetForNewGame();
 	void ClearTransient();
 
-	void RecordCandidateBed(RE::TESObjectREFR* a_bed);
+	bool RecordCandidateBed(RE::TESObjectREFR* a_bed);
+	bool CommitBed(RE::TESObjectREFR* a_bed);
 	bool CommitCandidateBed();
+	bool HasCandidateBed();
 	RE::TESObjectREFR* ResolveLastBed();
 
 	void SetAppliedBonuses(const AppliedBonuses& a_bonuses);

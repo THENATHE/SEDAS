@@ -250,11 +250,15 @@ namespace SEDAS::Saving
 			PerformBedAutoSave();
 		};
 
-		if (auto taskInterface = SKSE::GetTaskInterface()) {
-			taskInterface->AddTask(saveTask);
-		} else {
-			saveTask();
-		}
+		std::thread([saveTask]() {
+			std::this_thread::sleep_for(std::chrono::milliseconds(750));
+			if (auto taskInterface = SKSE::GetTaskInterface()) {
+				taskInterface->AddTask(saveTask);
+			} else {
+				g_bedAutoSaveQueued.store(false);
+				logger::warn("Could not queue SEDAS bed autosave; SKSE task interface is unavailable");
+			}
+		}).detach();
 	}
 
 	bool IsInBedSaveWindow()

@@ -89,6 +89,7 @@ namespace
 
 		ImGuiMCP::Separator();
 		ImGuiMCP::Text("Last bed: %08X", state.lastBedRefID);
+		ImGuiMCP::Text("Last bed cell: %08X", state.lastBedCellID);
 		ImGuiMCP::Text("Recovering: %s", state.recoveringFromDowned ? "yes" : "no");
 		RenderSaveButton();
 	}
@@ -155,6 +156,9 @@ namespace
 		}
 
 		ImGuiMCP::Separator();
+		auto& state = SEDAS::State::Get();
+		ImGuiMCP::Text("Last bed: %08X", state.lastBedRefID);
+		ImGuiMCP::Text("Last bed cell: %08X", state.lastBedCellID);
 		ImGuiMCP::Text("Bed save window: %s", SEDAS::Saving::IsInBedSaveWindow() ? "open" : "closed");
 		RenderAppliedBonuses(SEDAS::State::Get().appliedBonuses);
 	}
